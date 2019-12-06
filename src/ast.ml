@@ -1,25 +1,33 @@
-module Attributes =
-struct
-  type t =
-    {
-      id: string option;
-      classes: string list;
-      attributes: (string * string) list;
-    }
+type attributes =
+  {
+    id: string option;
+    classes: string list;
+    attributes: (string * string) list;
+  }
 
-  let empty = {id=None; classes=[]; attributes=[]}
-end
+type 'a link_def =
+  {
+    label: 'a;
+    destination: string;
+    title: string option;
+    attributes: attributes;
+  }
 
-module Link_def =
-struct
-  type 'a t =
-    {
-      label: 'a;
-      destination: string;
-      title: string option;
-      attributes: Attributes.t;
-    }
-end
+type code_block_kind =
+  | Tilde
+  | Backtick
+
+type emph_kind =
+  | Normal
+  | Strong
+
+type emph_style =
+  | Star
+  | Underscore
+
+type link_kind =
+  | Img
+  | Url
 
 module Block_list = struct
   type kind =
@@ -29,149 +37,107 @@ module Block_list = struct
   type style =
     | Loose
     | Tight
+end
 
-  type 'block t =
+type 'a elt =
   {
-    kind: kind;
-    style: style;
-    blocks: 'block list list;
+    term: 'a;
+    defs: 'a list;
   }
-end
-
-module Code_block = struct
-  type kind =
-    | Tilde
-    | Backtick
-
-  type t =
-    {
-      kind: kind option;
-      label: string option;
-      other: string option;
-      code: string option;
-      attributes: Attributes.t;
-    }
-end
-
-module Heading = struct
-  type 'block t =
-    {
-      level: int;
-      text: 'block;
-      attributes: Attributes.t;
-    }
-end
-
-module Def_list = struct
-  type 'a elt = { term : 'a; defs : 'a list }
-  type 'a t =
-  {
-    content: 'a elt list
-  }
-end
-
-module Tag_block = struct
-  type 'block t =
-  {
-    tag: string;
-    content: 'block list;
-    attributes: Attributes.t
-  }
-end
-
-type 'a block =
-  | Paragraph of 'a
-  | List of 'a block Block_list.t
-  | Blockquote of 'a block list
-  | Thematic_break
-  | Heading of 'a Heading.t
-  | Code_block of Code_block.t
-  | Html_block of string
-  | Link_def of string Link_def.t
-  | Def_list of 'a Def_list.t
-  | Tag_block of 'a block Tag_block.t
-
-module Emph = struct
-  type kind =
-    | Normal
-    | Strong
-
-  type style =
-    | Star
-    | Underscore
-
-  type 'inline t =
-  {
-    style: style;
-    kind: kind;
-    content: 'inline;
-  }
-end
-
-module Code = struct
-  type t =
-  {
-    level: int;
-    content: string;
-    attributes: Attributes.t;
-  }
-end
-
-type link_kind =
-  | Img
-  | Url
-
-module Link = struct
-  type kind = link_kind
-
-  type 'inline t =
-  {
-    kind: kind;
-    def: 'inline Link_def.t;
-  }
-end
-
-module Ref = struct
-  type kind = link_kind
-
-  type 'inline t =
-  {
-    kind: kind;
-    label: 'inline;
-    def: string Link_def.t;
-  }
-end
-
-module Tag = struct
-  type 'inline t =
-  {
-    tag: string;
-    content: 'inline;
-    attributes: Attributes.t
-  }
-end
 
 type inline =
   | Concat of inline list
   | Text of string
-  | Emph of inline Emph.t
-  | Code of Code.t
+  | Emph of
+      {
+        style: emph_style;
+        kind: emph_kind;
+        content: inline;
+      }
+  | Code of
+      {
+        level: int;
+        content: string;
+        attributes: attributes;
+      }
   | Hard_break
   | Soft_break
-  | Link of inline Link.t
-  | Ref of inline Ref.t
+  | Link of
+      {
+        kind: link_kind;
+        def: inline link_def;
+      }
+  | Ref of
+      {
+        kind: link_kind;
+        label: inline;
+        def: string link_def;
+      }
   | Html of string
-  | Tag of inline Tag.t
+  | Tag of
+      {
+        tag: string;
+        content: inline;
+        attributes: attributes;
+      }
+
+type block =
+  | Paragraph of inline
+  | List of
+      {
+        kind: Block_list.kind;
+        style: Block_list.style;
+        blocks: block list list;
+      }
+  | Blockquote of block list
+  | Thematic_break
+  | Heading of
+      {
+        level: int;
+        text: inline;
+        attributes: attributes;
+      }
+  | Code_block of
+      {
+        kind: code_block_kind option;
+        label: string option;
+        other: string option;
+        code: string option;
+        attributes: attributes;
+      }
+  | Html_block of string
+  | Link_def of string link_def
+  | Def_list of
+      {
+        content: inline elt list
+      }
+  | Tag_block of
+      {
+        tag: string;
+        content: block list;
+        attributes: attributes;
+      }
 
 let rec map f = function
-  | Paragraph x -> Paragraph (f x)
-  | List l -> List  {l with blocks = List.map (List.map (map f)) l.blocks}
-  | Blockquote xs -> Blockquote (List.map (map f) xs)
-  | Thematic_break -> Thematic_break
-  | Heading h -> Heading {h with text = f h.text}
-  | Def_list l -> Def_list {content = List.map (fun elt -> {Def_list.term = f elt.Def_list.term; defs = List.map f elt.defs}) l.content}
-  | Tag_block t -> Tag_block {t with content = List.map (map f) t.content}
-  | Code_block _ | Html_block _ | Link_def _ as x -> x
+  | Paragraph x ->
+      Paragraph (f x)
+  | List l ->
+      List  {l with blocks = List.map (List.map (map f)) l.blocks}
+  | Blockquote xs ->
+      Blockquote (List.map (map f) xs)
+  | Heading {level; text; attributes} ->
+      Heading {level; text = f text; attributes}
+  | Def_list {content} ->
+      let content =
+        List.map (fun elt -> {term = f elt.term; defs = List.map f elt.defs}) content
+      in
+      Def_list {content}
+  | Tag_block t ->
+      Tag_block {t with content = List.map (map f) t.content}
+  | Thematic_break
+  | Code_block _
+  | Html_block _
+  | Link_def _ as x -> x
 
 let defs ast =
   let rec loop acc = function

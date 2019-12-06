@@ -2,7 +2,7 @@ open Ast
 
 val same_list_kind: Block_list.kind -> Block_list.kind -> bool
 
-type 'a t = 'a block
+type t = block
 
 module Pre : sig
   type block
@@ -14,4 +14,4 @@ module Pre : sig
 
   val of_channel: in_channel -> block list
   val of_string: string -> block list
-end with type block := string t
+end
