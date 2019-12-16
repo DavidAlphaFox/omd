@@ -74,24 +74,18 @@ end = struct
         s1 = String.sub base off (String.length s1) || loop (off + 1)
     in
     loop off
-
+  (* 得到当前位置之后的一个字符 *)
   let head ?rev s =
     match rev, s with
-    | _, {len = 0; _} ->
-        None
-    | None, {base; off; _} ->
-        Some base.[off]
-    | Some (), {base; off; len} ->
-        Some base.[off + len - 1]
-
+    | _, {len = 0; _} -> None
+    | None, {base; off; _} -> Some base.[off]
+    | Some (), {base; off; len} -> Some base.[off + len - 1]
+  (* 判断是否可以向前移动 *)
   let tail ?rev s =
     match rev, s with
-    | _, {len = 0; _} ->
-        s
-    | None, {base; off; len} ->
-        {base; off = succ off; len = pred len}
-    | Some (), {base; off; len} ->
-        {base; off; len = pred len}
+    | _, {len = 0; _} -> s
+    | None, {base; off; len} -> {base; off = succ off; len = pred len}
+    | Some (), {base; off; len} -> {base; off; len = pred len}
 
   let heads n s =
     if n < 0 then invalid_arg "heads";
@@ -181,7 +175,7 @@ end = struct
       raise Fail
     else
       let c = st.str.[st.pos] in (st.pos <- st.pos + 1; c)
-
+ (*获取当前位置的字符*)
   let peek_exn st =
     if st.pos >= String.length st.str then
       raise Fail
@@ -210,7 +204,7 @@ end = struct
 
   let set_pos st pos =
     st.pos <- pos
-
+(*向前移进一个位置*)
   let junk st =
     if st.pos < String.length st.str then st.pos <- st.pos + 1
 
@@ -272,16 +266,16 @@ type t =
   | Lparagraph
   | Ldef_list of string
   | Ltag of int * int * string * Attributes.t
-
+(*计算在第一个非空字符之前，最多3个空字符*)
 let sp3 s =
   match Sub.head s with
-  | Some ' ' ->
-      let s = Sub.tail s in
+  | Some ' ' -> (*下一个字符是个空字符*)
+      let s = Sub.tail s in (* 向前移动 *)
       begin match Sub.head s with
-      | Some ' ' ->
-          let s = Sub.tail s in
+      | Some ' ' -> (* 下一个字符还是空字符 *)
+          let s = Sub.tail s in (* 向前移动  *)
           begin match Sub.head s with
-          | Some ' ' -> 3, Sub.tail s
+          | Some ' ' -> 3, Sub.tail s (* 3个空格，更新状态*)
           | Some _ | None -> 2, s
           end
       | Some _ | None -> 1, s
@@ -298,7 +292,7 @@ let rec ws ?rev s =
 
 let is_empty s =
   Sub.is_empty (ws s)
-
+(*尝试切thematic*)
 let thematic_break s =
   match Sub.head s with
   | Some ('*' | '_' | '-' as c) ->
@@ -558,16 +552,13 @@ let fenced_code ind s =
       loop 1 (Sub.tail s)
   | Some _ | None ->
       raise Fail
-
+(* 寻找空格数量 *)
 let indent s =
   let rec loop n s =
     match Sub.head s with
-    | Some ' ' ->
-        loop (n + 1) (Sub.tail s)
-    | Some '\t' ->
-        loop (n + 4) (Sub.tail s)
-    | Some _ | None ->
-        n
+    | Some ' ' -> loop (n + 1) (Sub.tail s)
+    | Some '\t' -> loop (n + 4) (Sub.tail s)
+    | Some _ | None -> n
   in
   loop 0 s
 
@@ -814,8 +805,9 @@ let tag ind s =
 let indented_code ind s =
   if indent s + ind < 4 then raise Fail;
   Lindented_code (Sub.offset (4 - ind) s)
-
+(*通过读取行首字符，判断改行应该是什么*)
 let parse s0 =
+  (* ind 是缩进个数，最大为3，s为字符串状态 *)
   let ind, s = sp3 s0 in
   match Sub.head s with
   | Some '>' ->

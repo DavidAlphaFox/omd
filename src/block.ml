@@ -235,10 +235,8 @@ module Pre = struct
   let of_channel ic =
     let rec loop state =
       match input_line ic with
-      | s ->
-          loop (process state s)
-      | exception End_of_file ->
-          finish state
+      | s -> loop (process state s)
+      | exception End_of_file -> finish state
     in
     loop empty
 
