@@ -90,6 +90,7 @@ module Pre = struct
     Parser.parse s
 
   let rec process {blocks; next} s =
+    (*需要知道上一行和当前行*)
     match next, classify_line s with
     | Rempty, Parser.Lempty ->
         {blocks; next = Rempty}

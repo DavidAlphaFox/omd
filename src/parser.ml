@@ -31,17 +31,13 @@ end = struct
       len: int;
     }
 
-  let of_string base =
-    {base; off = 0; len = String.length base}
+  let of_string base = {base; off = 0; len = String.length base}
 
-  let to_string {base; off; len} =
-    String.sub base off len
+  let to_string {base; off; len} = String.sub base off len
 
-  let print ppf s =
-    Format.fprintf ppf "%S" (to_string s)
+  let print ppf s = Format.fprintf ppf "%S" (to_string s)
 
-  let length {len; _} =
-    len
+  let length {len; _} = len
 
   let offset n {base; off; len} =
     if n < 0 then invalid_arg "offset";
@@ -51,11 +47,16 @@ end = struct
       else begin
         match base.[off] with
         | '\t' ->
+            (* 计算需要补齐的数量,tab占用的字节树 *)
             let ts = (off + 4) / 4 * 4 - off in
             let b = Buffer.create len in
+            (* 将offset前的内容添加到Buffer中*)
             Buffer.add_substring b base 0 off;
+            (*补齐空格*)
             for _ = 1 to ts do Buffer.add_char b ' ' done;
+            (* 将剩下内容放入Buffer *)
             Buffer.add_substring b base (off + 1) (len - 1);
+            (*进行位移操作*)
             loop n (Buffer.contents b) off (len + ts - 1)
         | _ ->
             loop (n - 1) base (off + 1) (len - 1)
@@ -63,8 +64,7 @@ end = struct
     in
     loop n base off len
 
-  let lexbuf s =
-    Lexing.from_string (to_string s)
+  let lexbuf s = Lexing.from_string (to_string s)
 
   let contains s1 {base; off; len} =
     let rec loop off =
@@ -104,7 +104,7 @@ end = struct
       else loop (pred n) (tail s)
     in
     loop n s
-
+  (*字符串是否为空*)
   let is_empty s =
     length s = 0
 
@@ -214,7 +214,7 @@ end = struct
 
   let (|||) p1 p2 st =
     try protect p1 st with Fail -> p2 st
-
+  (*清理掉所有的空格*)
   let ws st =
     let rec loop () =
       match peek_exn st with
@@ -292,7 +292,7 @@ let rec ws ?rev s =
 
 let is_empty s =
   Sub.is_empty (ws s)
-(*尝试切thematic*)
+(*尝试切thematic，html的hr标签*)
 let thematic_break s =
   match Sub.head s with
   | Some ('*' | '_' | '-' as c) ->
@@ -305,6 +305,7 @@ let thematic_break s =
         | Some _ ->
             raise Fail
         | None ->
+            (*数量小于3的时候，会报错*)
             if n < 3 then raise Fail;
             Lthematic_break
       in
@@ -315,12 +316,15 @@ let thematic_break s =
 let setext_heading s =
   match Sub.head s with
   | Some ('-' | '=' as c) ->
+      (*持续移动，计算控制字符串的长度*)
       let rec loop n s =
         match Sub.head s with
         | Some c1 when c = c1 ->
             loop (succ n) (Sub.tail s)
         | Some _ | None ->
+            (*控制字符串后面没数据了，这属于异常情况*)
             if not (Sub.is_empty (ws s)) then raise Fail;
+            (*如果是-，那么最少是2个以上，否则属于异常情况*)
             if c = '-' && n = 1 then raise Fail; (* can be interpreted as an empty list item *)
             Lsetext_heading ((if c = '-' then 2 else 1), n)
       in
@@ -561,12 +565,13 @@ let indent s =
     | Some _ | None -> n
   in
   loop 0 s
-
+(*无序列表*)
 let unordered_list_item ind s =
   match Sub.head s with
   | Some ('+' | '-' | '*' as c) ->
       let s = Sub.tail s in
       if is_empty s then
+        (*空字符串*)
         Llist_item (Unordered c, 2 + ind, s)
       else
         let n = indent s in
@@ -811,12 +816,16 @@ let parse s0 =
   let ind, s = sp3 s0 in
   match Sub.head s with
   | Some '>' ->
+      (*移动，吃掉控制字符*)
       let s = Sub.offset 1 s in
+      (*移动，吃掉控制字符后面所有的空格和tab*)
       let s = if indent s > 0 then Sub.offset 1 s else s in
       Lblockquote s
   | Some '=' ->
+      (*标题*)
       setext_heading s
   | Some '-' ->
+      (*可能是标题，分割线hr，无序列列表*)
       (setext_heading ||| thematic_break ||| unordered_list_item ind) s
   | Some ('_') ->
       thematic_break s
@@ -838,7 +847,7 @@ let parse s0 =
       (blank ||| indented_code ind) s
   | None ->
       Lempty
-
+(*包装内部的parse，任何没有匹配的情况都是paragraph*)
 let parse s =
   try parse s with Fail -> Lparagraph
 
